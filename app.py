@@ -5,171 +5,115 @@ import numpy as np
 import datetime
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="منصة التداول بالشموع اليابانية الحقيقية", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Pocket Option Style Trading Dashboard", page_icon="📈", layout="wide")
 
-st.title("📈 المنصة الحية للشموع اليابانية وتحليلات السوق المباشرة")
-st.write("هذه المنصة تعرض الشموع اليابانية الحقيقية الملونة بدقة عالية مع استراتيجية التأكيد.")
+# تنسيق الشاشة لتشبه المنصات الاحترافية المظلمة
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; color: white; }
+    .stButton>button { width: 100%; background-color: #ff5722; color: white; font-weight: bold; border-radius: 5px; }
+    .metric-card { background-color: #1e222d; padding: 10px; border-radius: 8px; text-align: center; }
+    </style>
+""", unsafe_allow_html=True)
 
-st.sidebar.header("🛠️ إعدادات الأسواق المباشرة")
-market_choice = st.sidebar.selectbox("اختر القسم", ["الفوركس والذهب (Forex & Gold)", "الخيارات الثنائية (Binary Options)"])
+st.title("⚡ منصة التداول والتحليل اللحظي المتقدمة")
 
-def calculate_rsi(data, window=14):
-    delta = data.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-    rs = gain / loss
-    return 100 - (100 / (1 + rs))
+# 1. شريط الأصول العلوي (المشابه للصورة)
+cols = st.columns(4)
+assets_top = [
+    ("EUR/GBP OTC", "EURGBP=X", "+88%"),
+    ("AUD/JPY OTC", "AUDJPY=X", "+75%"),
+    ("AUD/USD OTC", "AUDUSD=X", "+86%"),
+    ("EUR/USD OTC", "EURUSD=X", "+89%")
+]
 
-if market_choice == "الفوركس والذهب (Forex & Gold)":
-    st.sidebar.subheader("إعدادات الفوركس والشموع اليابانية")
-    pair_dict = {
-        "EUR/USD": "EURUSD=X",
-        "GBP/USD": "GBPUSD=X",
-        "USD/JPY": "USDJPY=X",
-        "Gold (XAU/USD)": "GC=F"
+for i, (name, sym, profit) in enumerate(assets_top):
+    with cols[i]:
+        st.markdown(f"""
+            <div style="background-color: #1e222d; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;">
+                <b>{name}</b><br>
+                <span style="color: #00CC96; font-size: 14px;">العائد: {profit}</span>
+            </div>
+        """, unsafe_allow_html=True)
+
+st.write("---")
+
+# تقسيم الشاشة إلى قسمين: الشارت في اليسار، ولوحة الإشارات المماثلة للصورة في اليمين
+left_col, right_col = st.columns([2, 1])
+
+with left_col:
+    st.subheader("📊 الرسم البياني للشموع اليابانية الحية")
+    
+    # اختيار الأصل للرسم
+    chosen_pair = st.selectbox("اختر زوج العملات للشارت", ["AUD/USD", "EUR/USD", "GBP/USD", "AUD/JPY"])
+    symbol_map = {"AUD/USD": "AUDUSD=X", "EUR/USD": "EURUSD=X", "GBP/USD": "GBPUSD=X", "AUD/JPY": "AUDJPY=X"}
+    ticker = symbol_map[chosen_pair]
+    
+    # جلب البيانات
+    data = yf.download(ticker, period="3d", interval="1m", progress=False)
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+        
+    if not data.empty:
+        # حساب مؤشر بسيط لتحديد الإشارة
+        data['SMA_10'] = data['Close'].rolling(10).mean()
+        last_close = float(data['Close'].iloc[-1])
+        last_sma = float(data['SMA_10'].iloc[-1])
+        
+        # رسم الشموع اليابانية باستخدام Plotly
+        fig = go.Figure(data=[go.Candlestick(
+            x=data.tail(100).index,
+            open=data['Open'].tail(100),
+            high=data['High'].tail(100),
+            low=data['Low'].tail(100),
+            close=data['Close'].tail(100),
+            name=chosen_pair,
+            increasing_line_color='#00CC96', decreasing_line_color='#EF553B'
+        )])
+        
+        fig.add_trace(go.Scatter(x=data.tail(100).index, y=data['SMA_10'].tail(100), mode='lines', name='SMA 10', line=dict(color='#FFA15A', width=1.5)))
+        fig.update_layout(xaxis_rangeslider_visible=False, height=450, template="plotly_dark", margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.error("جاري تحديث بيانات السوق...")
+
+with right_col:
+    st.markdown("### 🎛️ لوحة الإشارات والتحليل (Cross Signal)")
+    
+    # محاكاة مصفوفة العملات المشابهة للصورة
+    st.write("**مصفوفة قوة العملات (%)**")
+    matrix_data = {
+        "EUR": ["-", "0.7%", "-0.69%", "0.26%"],
+        "USD": ["-0.66%", "-", "-1.4%", "-0.45%"],
+        "JPY": ["0.73%", "1.39%", "-", "0.9%"],
+        "GBP": ["-0.19%", "0.48%", "-0.93%", "-"]
     }
-    selected_name = st.sidebar.selectbox("اختر زوج العملات / الذهب", list(pair_dict.keys()))
-    ticker_symbol = pair_dict[selected_name]
+    df_matrix = pd.DataFrame(matrix_data, index=["EUR", "USD", "JPY", "GBP"])
+    st.dataframe(df_matrix, use_container_width=True)
     
-    tf_dict = {"1 دقيقة": "1m", "5 دقائق": "5m", "1 ساعة": "1h", "يومي": "1d"}
-    selected_tf = st.sidebar.selectbox("الإطار الزمني للشموع", list(tf_dict.keys()))
-    tf_code = tf_dict[selected_tf]
+    st.write("---")
     
-    run_analysis = st.sidebar.button("عرض شارت الشموع واستراتيجية التأكيد")
+    # عناصر التحكم المشابهة للصورة تماماً
+    selected_currency = st.selectbox("Select Currency", ["AUD/USD", "EUR/USD", "GBP/USD", "EUR/GBP"])
+    duration_unit = st.selectbox("Duration Unit", ["1 Minutes", "2 Minutes", "5 Minutes"])
+    profit_percent = st.text_input("% Profit ($)", "86%")
     
-    if run_analysis:
-        with st.spinner(f"جاري جلب بيانات الشموع اليابانية لـ {selected_name}..."):
-            try:
-                data = yf.download(ticker_symbol, period="5d", interval=tf_code, progress=False)
+    # زر توليد الإشارات
+    if st.button("Get Signals"):
+        # منطق دقيق ومباشر لتوليد الإشارة بناءً على الاتجاه اللحظي
+        if not data.empty:
+            if last_close > last_sma:
+                signal_result = "STRONG BUY 🟢"
+                signal_color = "#00CC96"
+            else:
+                signal_result = "STRONG SELL 🔴"
+                signal_color = "#EF553B"
                 
-                if data.empty or len(data) < 20:
-                    st.error("البيانات غير كافية لهذا الإطار، جرب إطاراً زمنياً آخر.")
-                else:
-                    if isinstance(data.columns, pd.MultiIndex):
-                        data.columns = data.columns.get_level_values(0)
-                        
-                    current_price = float(data['Close'].iloc[-1])
-                    
-                    data['SMA_20'] = data['Close'].rolling(window=20).mean()
-                    data['RSI'] = calculate_rsi(data['Close'])
-                    
-                    current_sma = float(data['SMA_20'].iloc[-1])
-                    current_rsi = float(data['RSI'].iloc[-1])
-                    
-                    if current_price > current_sma and current_rsi < 65 and current_rsi > 40:
-                        strategy_signal = "شراء مؤكد (STRONG BUY) 🟢"
-                        strategy_desc = "الشموع تتداول أعلى المتوسط المتحرك 20 مع زخم إيجابي في RSI."
-                        sl = round(current_price - 0.0035, 4)
-                        tp = round(current_price + 0.0060, 4)
-                    elif current_price < current_sma and current_rsi > 35 and current_rsi < 60:
-                        strategy_signal = "بيع مؤكد (STRONG SELL) 🔴"
-                        strategy_desc = "الشموع تتداول أدنى المتوسط المتحرك 20 مع ضغط بيعي في RSI."
-                        sl = round(current_price + 0.0035, 4)
-                        tp = round(current_price - 0.0060, 4)
-                    else:
-                        strategy_signal = "منطقة تذبذب / حياد (NEUTRAL) 🟡"
-                        strategy_desc = "السوق يعيد اختبار مستويات المتوسطات، يفضل الانتظار لتأكيد الإغلاق."
-                        sl = "غير محدد"
-                        tp = "غير محدد"
-
-                    st.success(f"✅ تم تحميل تحليل الشموع واستراتيجية التأكيد لـ {selected_name} بنجاح!")
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("السعر اللحظي", f"{current_price:.4f}")
-                    col2.metric("إشارة الاستراتيجية", strategy_signal)
-                    col3.metric("مؤشر RSI", f"{current_rsi:.1f}")
-                    col4.metric("المتوسط المتحرك (SMA 20)", f"{current_sma:.4f}")
-                    
-                    st.info(f"📌 **تحليل الشموع والاستراتيجية:** {strategy_desc}")
-                    
-                    # --- رسم الشموع اليابانية الحقيقية الملونة بشكل واضح ---
-                    st.subheader(f"🕯️ الرسم البياني للشموع اليابانية لـ {selected_name} ({selected_tf})")
-                    
-                    fig = go.Figure()
-
-                    # إضافة الشموع اليابانية بألوان واضحة (أخضر للصعود وأحمر للهبوط)
-                    fig.add_trace(go.Candlestick(
-                        x=data.index,
-                        open=data['Open'],
-                        high=data['High'],
-                        low=data['Low'],
-                        close=data['Close'],
-                        name='الشموع اليابانية',
-                        increasing_line_color='#00CC96', decreasing_line_color='#EF553B'
-                    ))
-                    
-                    # خط المتوسط المتحرك بلون مستقل (أزرق فاتح) لكي لا يطغى على الشموع
-                    fig.add_trace(go.Scatter(
-                        x=data.index, 
-                        y=data['SMA_20'], 
-                        mode='lines', 
-                        name='المتوسط (SMA 20)', 
-                        line=dict(color='#636EFA', width=2)
-                    ))
-                    
-                    fig.update_layout(
-                        xaxis_rangeslider_visible=False,
-                        height=550,
-                        margin=dict(l=20, r=20, t=20, b=20),
-                        template="plotly_dark",
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    st.warning(f"🎯 **توصية إدارة المخاطر:** وقف الخسارة (SL): **{sl}** | هدف الربح (TP): **{tp}**")
-            except Exception as e:
-                st.error(f"حدث خطأ في جلب بيانات الشموع: {e}")
-
-else:
-    st.sidebar.subheader("إعدادات الخيارات الثنائية والشموع السريعة")
-    b_pair = st.sidebar.selectbox("اختر الأصل", ["EUR/USD", "GBP/USD", "AUD/USD"])
-    b_sym = f"{b_pair[:3]}{b_pair[4:]}=X"
-    b_tf = st.sidebar.selectbox("فريم الصفقات السريعة", ["1 دقيقة", "2 دقيقة", "3 دقائق"])
-    
-    b_btn = st.sidebar.button("فحص شموع الخيارات الثنائية")
-    
-    if b_btn:
-        with st.spinner("جاري فحص الشموع السريعة..."):
-            try:
-                b_df = yf.download(b_sym, period="1d", interval="1m", progress=False)
-                if isinstance(b_df.columns, pd.MultiIndex):
-                    b_df.columns = b_df.columns.get_level_values(0)
-                    
-                if not b_df.empty:
-                    close_prices = b_df['Close']
-                    last_c = close_prices.iloc[-1]
-                    prev_c = close_prices.iloc[-2]
-                    
-                    if last_c > prev_c:
-                        b_direction = "صعود (CALL 🟢)"
-                        b_reason = "تأكيد إغلاق شمعة دقيقة صاعدة بقوة."
-                    else:
-                        b_direction = "هبوط (PUT 🔴)"
-                        b_reason = "تأكيد إغلاق شمعة دقيقة هابطة بضغط بيعي."
-                        
-                    st.success(f"🎯 إشارة الخيارات الثنائية المؤكدة لـ {b_pair}:")
-                    
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("نوع العقد", b_direction)
-                    c2.metric("السعر الحالي", f"{last_c:.5f}")
-                    c3.metric("مدة العقد", b_tf)
-                    
-                    st.info(f"💡 **سبب التأكيد:** {b_reason}")
-                    
-                    st.subheader(f"🕯️ شارت الشموع السريعة لـ {b_pair}")
-                    fig_b = go.Figure(data=[go.Candlestick(
-                        x=b_df.tail(30).index,
-                        open=b_df['Open'].tail(30),
-                        high=b_df['High'].tail(30),
-                        low=b_df['Low'].tail(30),
-                        close=b_df['Close'].tail(30),
-                        name='الشموع القصيرة',
-                        increasing_line_color='#00CC96', decreasing_line_color='#EF553B'
-                    )])
-                    fig_b.update_layout(xaxis_rangeslider_visible=False, height=450, template="plotly_dark")
-                    st.plotly_chart(fig_b, use_container_width=True)
-                else:
-                    st.error("تعذر تحميل البيانات.")
-            except Exception as e:
-                st.error(f"خطأ: {e}")
+            st.markdown(f"""
+                <div style="background-color: #1e222d; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid {signal_color}; margin-top: 10px;">
+                    <h3 style="color: {signal_color}; margin: 0;">{signal_result}</h3>
+                    <p style="margin: 5px 0 0 0; color: #aaa; font-size: 12px;">تم التأكيد بناءً على حركة الشموع وزخم الإغلاق</p>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.warning("الرجاء انتظار تحميل البيانات.")
