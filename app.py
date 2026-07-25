@@ -5,115 +5,124 @@ import numpy as np
 import datetime
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Pocket Option Style Trading Dashboard", page_icon="📈", layout="wide")
+st.set_page_config(page_title="منصة تحليلات الفوركس والشموع المباشرة", page_icon="📈", layout="wide")
 
-# تنسيق الشاشة لتشبه المنصات الاحترافية المظلمة
+# تنسيق واجهة احترافية مظلمة تشبه منصات التداول الكبرى
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
-    .stButton>button { width: 100%; background-color: #ff5722; color: white; font-weight: bold; border-radius: 5px; }
-    .metric-card { background-color: #1e222d; padding: 10px; border-radius: 8px; text-align: center; }
+    .stButton>button { width: 100%; background-color: #00CC96; color: white; font-weight: bold; border-radius: 5px; height: 45px; }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("⚡ منصة التداول والتحليل اللحظي المتقدمة")
+st.title("📈 المنصة الحية لتحليلات فوركس والشموع اليابانية الاحترافية")
+st.write("مخصصة لتحليل أزواج الفوركس الحية وتقديم إشارات دقيقة ومباشرة بناءً على حركة السعر والزخم.")
 
-# 1. شريط الأصول العلوي (المشابه للصورة)
-cols = st.columns(4)
-assets_top = [
-    ("EUR/GBP OTC", "EURGBP=X", "+88%"),
-    ("AUD/JPY OTC", "AUDJPY=X", "+75%"),
-    ("AUD/USD OTC", "AUDUSD=X", "+86%"),
-    ("EUR/USD OTC", "EURUSD=X", "+89%")
-]
+# شريط الأدوات الجانبي لإعدادات الفوركس
+st.sidebar.header("🛠️ إعدادات سوق الفوركس")
 
-for i, (name, sym, profit) in enumerate(assets_top):
-    with cols[i]:
-        st.markdown(f"""
-            <div style="background-color: #1e222d; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;">
-                <b>{name}</b><br>
-                <span style="color: #00CC96; font-size: 14px;">العائد: {profit}</span>
-            </div>
-        """, unsafe_allow_html=True)
+forex_pairs = {
+    "EUR/USD (يورو / دولار أمريكي)": "EURUSD=X",
+    "GBP/USD (سترلينج / دولار أمريكي)": "GBPUSD=X",
+    "USD/JPY (دولار / ين ياباني)": "USDJPY=X",
+    "AUD/USD (أسترالي / دولار أمريكي)": "AUDUSD=X",
+    "USD/CHF (دولار / فرنك سويسري)": "USDCHF=X"
+}
 
-st.write("---")
+selected_name = st.sidebar.selectbox("اختر زوج العملات", list(forex_pairs.keys()))
+ticker_symbol = forex_pairs[selected_name]
 
-# تقسيم الشاشة إلى قسمين: الشارت في اليسار، ولوحة الإشارات المماثلة للصورة في اليمين
-left_col, right_col = st.columns([2, 1])
+tf_dict = {"دقيقة واحدة (1m)": "1m", "5 دقائق (5m)": "5m", "1 ساعة (1h)": "1h", "يومي (1d)": "1d"}
+selected_tf = st.sidebar.selectbox("الإطار الزمني", list(tf_dict.keys()))
+tf_code = tf_dict[selected_tf]
 
-with left_col:
-    st.subheader("📊 الرسم البياني للشموع اليابانية الحية")
-    
-    # اختيار الأصل للرسم
-    chosen_pair = st.selectbox("اختر زوج العملات للشارت", ["AUD/USD", "EUR/USD", "GBP/USD", "AUD/JPY"])
-    symbol_map = {"AUD/USD": "AUDUSD=X", "EUR/USD": "EURUSD=X", "GBP/USD": "GBPUSD=X", "AUD/JPY": "AUDJPY=X"}
-    ticker = symbol_map[chosen_pair]
-    
-    # جلب البيانات
-    data = yf.download(ticker, period="3d", interval="1m", progress=False)
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
+# دالة حساب مؤشر القوة النسبية RSI لتصفية الإشارات الكاذبة
+def calculate_rsi(data, window=14):
+    delta = data.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
+with st.spinner(f"جاري جلب وتحليل بيانات {selected_name} الحية..."):
+    try:
+        # جلب البيانات الحية من السوق
+        data = yf.download(ticker_symbol, period="5d", interval=tf_code, progress=False)
         
-    if not data.empty:
-        # حساب مؤشر بسيط لتحديد الإشارة
-        data['SMA_10'] = data['Close'].rolling(10).mean()
-        last_close = float(data['Close'].iloc[-1])
-        last_sma = float(data['SMA_10'].iloc[-1])
-        
-        # رسم الشموع اليابانية باستخدام Plotly
-        fig = go.Figure(data=[go.Candlestick(
-            x=data.tail(100).index,
-            open=data['Open'].tail(100),
-            high=data['High'].tail(100),
-            low=data['Low'].tail(100),
-            close=data['Close'].tail(100),
-            name=chosen_pair,
-            increasing_line_color='#00CC96', decreasing_line_color='#EF553B'
-        )])
-        
-        fig.add_trace(go.Scatter(x=data.tail(100).index, y=data['SMA_10'].tail(100), mode='lines', name='SMA 10', line=dict(color='#FFA15A', width=1.5)))
-        fig.update_layout(xaxis_rangeslider_visible=False, height=450, template="plotly_dark", margin=dict(l=10, r=10, t=10, b=10))
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.error("جاري تحديث بيانات السوق...")
-
-with right_col:
-    st.markdown("### 🎛️ لوحة الإشارات والتحليل (Cross Signal)")
-    
-    # محاكاة مصفوفة العملات المشابهة للصورة
-    st.write("**مصفوفة قوة العملات (%)**")
-    matrix_data = {
-        "EUR": ["-", "0.7%", "-0.69%", "0.26%"],
-        "USD": ["-0.66%", "-", "-1.4%", "-0.45%"],
-        "JPY": ["0.73%", "1.39%", "-", "0.9%"],
-        "GBP": ["-0.19%", "0.48%", "-0.93%", "-"]
-    }
-    df_matrix = pd.DataFrame(matrix_data, index=["EUR", "USD", "JPY", "GBP"])
-    st.dataframe(df_matrix, use_container_width=True)
-    
-    st.write("---")
-    
-    # عناصر التحكم المشابهة للصورة تماماً
-    selected_currency = st.selectbox("Select Currency", ["AUD/USD", "EUR/USD", "GBP/USD", "EUR/GBP"])
-    duration_unit = st.selectbox("Duration Unit", ["1 Minutes", "2 Minutes", "5 Minutes"])
-    profit_percent = st.text_input("% Profit ($)", "86%")
-    
-    # زر توليد الإشارات
-    if st.button("Get Signals"):
-        # منطق دقيق ومباشر لتوليد الإشارة بناءً على الاتجاه اللحظي
-        if not data.empty:
-            if last_close > last_sma:
-                signal_result = "STRONG BUY 🟢"
-                signal_color = "#00CC96"
-            else:
-                signal_result = "STRONG SELL 🔴"
-                signal_color = "#EF553B"
-                
-            st.markdown(f"""
-                <div style="background-color: #1e222d; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid {signal_color}; margin-top: 10px;">
-                    <h3 style="color: {signal_color}; margin: 0;">{signal_result}</h3>
-                    <p style="margin: 5px 0 0 0; color: #aaa; font-size: 12px;">تم التأكيد بناءً على حركة الشموع وزخم الإغلاق</p>
-                </div>
-            """, unsafe_allow_html=True)
+        if data.empty or len(data) < 25:
+            st.warning("⚠️ السوق مغلق حالياً أو البيانات غير كافية لهذا الإطار. ستعمل البيانات بشكل حي بمجرد افتتاح السوق يوم الإثنين.")
         else:
-            st.warning("الرجاء انتظار تحميل البيانات.")
+            if isinstance(data.columns, pd.MultiIndex):
+                data.columns = data.columns.get_level_values(0)
+                
+            current_price = float(data['Close'].iloc[-1])
+            prev_price = float(data['Close'].iloc[-2])
+            
+            # حساب المتوسط المتحرك الأسي EMA ومؤشر RSI الاستراتيجي
+            data['EMA_20'] = data['Close'].ewm(span=20, adjust=False).mean()
+            data['RSI'] = calculate_rsi(data['Close'])
+            
+            current_ema = float(data['EMA_20'].iloc[-1])
+            current_rsi = float(data['RSI'].iloc[-1])
+            
+            # استراتيجية دقيقة ومحترفة لتحديد الدخول (Strong Buy / Strong Sell)
+            # تعتمد على تقاطع السعر مع المتوسط وزخم RSI لتجنب الإشارات الوهمية
+            if current_price > current_ema and 45 < current_rsi < 70:
+                signal_type = "STRONG BUY 🟢"
+                signal_color = "#00CC96"
+                signal_desc = "السعر يتداول أعلى المتوسط الأسي مع زخم صاعد مؤكد في مؤشر RSI."
+            elif current_price < current_ema and 30 < current_rsi < 55:
+                signal_type = "STRONG SELL 🔴"
+                signal_color = "#EF553B"
+                signal_desc = "السعر يتداول أدنى المتوسط الأسي مع ضغط بيعي مؤكد في مؤشر RSI."
+            else:
+                signal_type = "منطقة مراقبة / حياد 🟡"
+                signal_color = "#FFA15A"
+                signal_desc = "السوق في منطقة تذبذب حالياً، يفضل الانتظار لاختراق واضح."
+
+            # عرض مؤشرات السوق الحية في الأعلى
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("السعر الحالي", f"{current_price:.5f}", f"{((current_price - prev_price)/prev_price)*100:.2f}%")
+            c2.metric("حالة الإشارة الاستراتيجية", signal_type)
+            c3.metric("مؤشر الزخم (RSI)", f"{current_rsi:.1f}")
+            c4.metric("المتوسط الأسي (EMA 20)", f"{current_ema:.5f}")
+            
+            st.info(تحليل الاستراتيجية المباشر: {signal_desc})
+            
+            # --- رسم الشموع اليابانية الاحترافية الحية (مشابه لـ TradingView) ---
+            st.subheader(f"🕯️ الشارت المباشر لـ {selected_name} ({selected_tf})")
+            
+            fig = go.Figure()
+
+            # إضافة الشموع اليابانية الملونة
+            fig.add_trace(go.Candlestick(
+                x=data.index,
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
+                name='الشموع اليابانية',
+                increasing_line_color='#00CC96', decreasing_line_color='#EF553B'
+            ))
+            
+            # إضافة خط المتوسط المتحرك الأسي EMA
+            fig.add_trace(go.Scatter(
+                x=data.index, 
+                y=data['EMA_20'], 
+                mode='lines', 
+                name='EMA 20', 
+                line=dict(color='#2962FF', width=2)
+            ))
+            
+            fig.update_layout(
+                xaxis_rangeslider_visible=False,
+                height=550,
+                margin=dict(l=10, r=10, t=10, b=10),
+                template="plotly_dark",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+    except Exception as e:
+        st.error(f"حدث خطأ أثناء جلب بيانات السوق: {e}")
