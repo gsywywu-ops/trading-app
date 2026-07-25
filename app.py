@@ -5,15 +5,14 @@ import numpy as np
 import datetime
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="منصة التداول بالشموع اليابانية", page_icon="📈", layout="wide")
+st.set_page_config(page_title="منصة التداول بالشموع اليابانية الحقيقية", page_icon="📈", layout="wide")
 
 st.title("📈 المنصة الحية للشموع اليابانية وتحليلات السوق المباشرة")
-st.write("هذه المنصة تعرض الرسوم البيانية للشموع اليابانية الحقيقية مع استراتيجية دقيقة ومباشرة لتأكيد الاتجاه.")
+st.write("هذه المنصة تعرض الشموع اليابانية الحقيقية الملونة بدقة عالية مع استراتيجية التأكيد.")
 
 st.sidebar.header("🛠️ إعدادات الأسواق المباشرة")
 market_choice = st.sidebar.selectbox("اختر القسم", ["الفوركس والذهب (Forex & Gold)", "الخيارات الثنائية (Binary Options)"])
 
-# دالة حساب مؤشر RSI
 def calculate_rsi(data, window=14):
     delta = data.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
@@ -51,14 +50,12 @@ if market_choice == "الفوركس والذهب (Forex & Gold)":
                         
                     current_price = float(data['Close'].iloc[-1])
                     
-                    # حساب المؤشرات
                     data['SMA_20'] = data['Close'].rolling(window=20).mean()
                     data['RSI'] = calculate_rsi(data['Close'])
                     
                     current_sma = float(data['SMA_20'].iloc[-1])
                     current_rsi = float(data['RSI'].iloc[-1])
                     
-                    # استراتيجية تأكيد الاتجاه
                     if current_price > current_sma and current_rsi < 65 and current_rsi > 40:
                         strategy_signal = "شراء مؤكد (STRONG BUY) 🟢"
                         strategy_desc = "الشموع تتداول أعلى المتوسط المتحرك 20 مع زخم إيجابي في RSI."
@@ -77,7 +74,6 @@ if market_choice == "الفوركس والذهب (Forex & Gold)":
 
                     st.success(f"✅ تم تحميل تحليل الشموع واستراتيجية التأكيد لـ {selected_name} بنجاح!")
                     
-                    # عرض المقاييس
                     col1, col2, col3, col4 = st.columns(4)
                     col1.metric("السعر اللحظي", f"{current_price:.4f}")
                     col2.metric("إشارة الاستراتيجية", strategy_signal)
@@ -86,32 +82,37 @@ if market_choice == "الفوركس والذهب (Forex & Gold)":
                     
                     st.info(f"📌 **تحليل الشموع والاستراتيجية:** {strategy_desc}")
                     
-                    # --- رسم الشموع اليابانية الحقيقية باستخدام Plotly ---
+                    # --- رسم الشموع اليابانية الحقيقية الملونة بشكل واضح ---
                     st.subheader(f"🕯️ الرسم البياني للشموع اليابانية لـ {selected_name} ({selected_tf})")
                     
-                    fig = go.Figure(data=[go.Candlestick(
+                    fig = go.Figure()
+
+                    # إضافة الشموع اليابانية بألوان واضحة (أخضر للصعود وأحمر للهبوط)
+                    fig.add_trace(go.Candlestick(
                         x=data.index,
                         open=data['Open'],
                         high=data['High'],
                         low=data['Low'],
                         close=data['Close'],
-                        name='الشموع اليابانية'
-                    )])
+                        name='الشموع اليابانية',
+                        increasing_line_color='#00CC96', decreasing_line_color='#EF553B'
+                    ))
                     
-                    # إضافة خط المتوسط المتحرك على الشارت لتكتمل الاستراتيجية
+                    # خط المتوسط المتحرك بلون مستقل (أزرق فاتح) لكي لا يطغى على الشموع
                     fig.add_trace(go.Scatter(
                         x=data.index, 
                         y=data['SMA_20'], 
                         mode='lines', 
                         name='المتوسط (SMA 20)', 
-                        line=dict(color='orange', width=2)
+                        line=dict(color='#636EFA', width=2)
                     ))
                     
                     fig.update_layout(
                         xaxis_rangeslider_visible=False,
-                        height=500,
+                        height=550,
                         margin=dict(l=20, r=20, t=20, b=20),
-                        template="plotly_dark"
+                        template="plotly_dark",
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
@@ -156,7 +157,6 @@ else:
                     
                     st.info(f"💡 **سبب التأكيد:** {b_reason}")
                     
-                    # شارت شموع مصغر للخيارات الثنائية الأخيرة
                     st.subheader(f"🕯️ شارت الشموع السريعة لـ {b_pair}")
                     fig_b = go.Figure(data=[go.Candlestick(
                         x=b_df.tail(30).index,
@@ -164,9 +164,10 @@ else:
                         high=b_df['High'].tail(30),
                         low=b_df['Low'].tail(30),
                         close=b_df['Close'].tail(30),
-                        name='الشموع القصيرة'
+                        name='الشموع القصيرة',
+                        increasing_line_color='#00CC96', decreasing_line_color='#EF553B'
                     )])
-                    fig_b.update_layout(xaxis_rangeslider_visible=False, height=400, template="plotly_dark")
+                    fig_b.update_layout(xaxis_rangeslider_visible=False, height=450, template="plotly_dark")
                     st.plotly_chart(fig_b, use_container_width=True)
                 else:
                     st.error("تعذر تحميل البيانات.")
