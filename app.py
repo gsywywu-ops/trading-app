@@ -66,7 +66,6 @@ with st.spinner(f"جاري جلب وتحليل بيانات {selected_name} ال
             current_rsi = float(data['RSI'].iloc[-1])
             
             # استراتيجية دقيقة ومحترفة لتحديد الدخول (Strong Buy / Strong Sell)
-            # تعتمد على تقاطع السعر مع المتوسط وزخم RSI لتجنب الإشارات الوهمية
             if current_price > current_ema and 45 < current_rsi < 70:
                 signal_type = "STRONG BUY 🟢"
                 signal_color = "#00CC96"
@@ -87,9 +86,9 @@ with st.spinner(f"جاري جلب وتحليل بيانات {selected_name} ال
             c3.metric("مؤشر الزخم (RSI)", f"{current_rsi:.1f}")
             c4.metric("المتوسط الأسي (EMA 20)", f"{current_ema:.5f}")
             
-            st.info(تحليل الاستراتيجية المباشر: {signal_desc})
+            st.info(f"تحليل الاستراتيجية المباشر: {signal_desc}")
             
-            # --- رسم الشموع اليابانية الاحترافية الحية (مشابه لـ TradingView) ---
+            # --- رسم الشموع اليابانية الاحترافية الحية ---
             st.subheader(f"🕯️ الشارت المباشر لـ {selected_name} ({selected_tf})")
             
             fig = go.Figure()
